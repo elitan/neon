@@ -1,12 +1,10 @@
 import os
-import threading
 from typing import List
 
 import time
 import pytest
 from fixtures.compare_fixtures import NeonCompare, PgCompare
 from fixtures.pg_stats import PgStatTable
-from fixtures.log_helper import log
 
 from performance.test_perf_pgbench import get_durations_matrix, get_scales_matrix
 
@@ -55,12 +53,6 @@ def test_compare_pg_stats_wo_with_pgbench_simple_update(neon_with_baseline: PgCo
     env.flush()
 
     with env.record_pg_stats(pg_stats_wo):
-
-        stop_event = threading.Event()
-        log_thread = threading.Thread(target=_log_pg_stats_rate,
-                                      args=(env, pg_stats_wo, stop_event, 0.5))
-        log_thread.start()
-
         env.pg_bin.run_capture([
             'pgbench',
             '-N',
@@ -71,8 +63,6 @@ def test_compare_pg_stats_wo_with_pgbench_simple_update(neon_with_baseline: PgCo
             env.pg.connstr()
         ])
         env.flush()
-
-        stop_event.set()
 
 
 @pytest.mark.parametrize("seed", get_seeds_matrix())
@@ -89,11 +79,6 @@ def test_compare_pg_stats_ro_with_pgbench_select_only(neon_compare: NeonCompare,
     env.flush()
 
     with env.record_pg_stats(pg_stats_ro):
-        stop_event = threading.Event()
-        log_thread = threading.Thread(target=_log_pg_stats_rate,
-                                      args=(env, pg_stats_ro, stop_event, 0.5))
-        log_thread.start()
-
         env.pg_bin.run_capture([
             'pgbench',
             '-S',
@@ -104,8 +89,6 @@ def test_compare_pg_stats_ro_with_pgbench_select_only(neon_compare: NeonCompare,
             env.pg.connstr()
         ])
         env.flush()
-
-        stop_event.set()
 
 
 @pytest.mark.parametrize("seed", get_seeds_matrix())
@@ -127,17 +110,19 @@ def test_compare_pg_stats_wal_with_pgbench_default(neon_with_baseline: PgCompare
         env.flush()
 
 
-def _log_pg_stats_rate(env: PgCompare,
-                       pg_stats: List[PgStatTable],
-                       stop_event: threading.Event,
-                       polling_interval=1.0):
-    prev_data = env._retrieve_pg_stats(pg_stats)
-    time.sleep(polling_interval)
+@pytest.mark.parametrize("duration", get_durations_matrix(5))
+def test_compare_pg_stats_ro_with_simple_read(neon_with_baseline: PgCompare,
+                                              duration: int,
+                                              pg_stats_ro: List[PgStatTable]):
+    env = neon_with_baseline
 
-    while not stop_event.is_set():
-        data = env._retrieve_pg_stats(pg_stats)
-        for k in set(prev_data) & set(data):
-            log.info(f"{k}/s: {(data[k] - prev_data[k]) / polling_interval}")
+    # initialize test table
+    with env.pg.connect().cursor() as cur:
+        cur.execute("CREATE TABLE foo as select generate_series(1,100000)")
 
-        prev_data = data
-        time.sleep(polling_interval)
+    start = time.time()
+
+    with env.record_pg_stats(pg_stats_ro):
+        with env.pg.connect().cursor() as cur:
+            while time.time() - start < duration:
+                cur.execute("SELECT * from foo")
