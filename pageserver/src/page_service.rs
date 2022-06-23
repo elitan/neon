@@ -473,8 +473,11 @@ impl PageServerHandler {
         /* switch client to COPYBOTH */
         pgb.write_message(&BeMessage::CopyBothResponse)?;
 
+        let timer = std::time::Instant::now();
         while !thread_mgr::is_shutdown_requested() {
+            let d = timer.elapsed();
             let msg = pgb.read_message();
+            info!("read message took {}us", (timer.elapsed() - d).as_micros());
 
             let profiling_guard = profpoint_start(self.conf, ProfilingConfig::PageRequests);
             match msg {
@@ -523,7 +526,9 @@ impl PageServerHandler {
                             })
                         });
 
+                        let d = timer.elapsed();
                         pgb.write_message(&BeMessage::CopyData(&response.serialize()))?;
+                        info!("write message took {}us", (timer.elapsed() - d).as_micros());
                     } else {
                         break;
                     }
@@ -757,6 +762,7 @@ impl PageServerHandler {
     ) -> Result<PagestreamBeMessage> {
         let _enter = info_span!("get_page", rel = %req.rel, blkno = &req.blkno, req_lsn = %req.lsn)
             .entered();
+        let timer = std::time::Instant::now();
         let latest_gc_cutoff_lsn = timeline.tline.get_latest_gc_cutoff_lsn();
         let lsn = Self::wait_or_get_last_lsn(timeline, req.lsn, req.latest, &latest_gc_cutoff_lsn)?;
         /*
@@ -768,6 +774,10 @@ impl PageServerHandler {
         }
         */
         let page = timeline.get_rel_page_at_lsn(req.rel, req.blkno, lsn)?;
+        info!(
+            "handle get_page_at_lsn_request took {}us",
+            timer.elapsed().as_micros()
+        );
 
         Ok(PagestreamBeMessage::GetPage(PagestreamGetPageResponse {
             page,
