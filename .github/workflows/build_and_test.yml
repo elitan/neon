@@ -312,10 +312,12 @@ jobs:
 
   docker-image:
     runs-on: [ self-hosted, Linux, k8s-runner ]
-    needs: [ build-neon ]
-    if: |
-      github.ref_name == 'main' &&
-      github.event_name != 'workflow_dispatch'
+#    needs: [ build-neon ]
+#    if: |
+#      github.ref_name == 'main' &&
+#      github.event_name != 'workflow_dispatch'
+    outputs:
+      build-tag: ${{steps.build-tag.outputs.tag}}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -329,11 +331,58 @@ jobs:
           username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
           password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
 
-       - name: Build compute-tools Docker image
-         uses: docker/build-push-action@v2
-         with:
-           build-args: |
-             AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
-             AWS_SECRET_ACCESS_KEY="${CACHEPOT_AWS_SECRET_ACCESS_KEY}"
-           push: false
-           tags: neondatabase/console:local
+      - name: Get build tag
+        run: |
+          echo "::set-output name=tag::main-$(git rev-list --count HEAD)}"
+        id: build-tag
+
+      - name: Build compute-tools Docker image
+        uses: docker/build-push-action@v2
+        with:
+          build-args: |
+            GIT_VERSION="${GITHUB_SHA}"
+            AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
+            AWS_SECRET_ACCESS_KEY="${CACHEPOT_AWS_SECRET_ACCESS_KEY}"
+          pull: true
+          push: false
+          tags: neondatabase/neon:testgh-latest, neondatabase/neon:testgh-${{steps.build-tag.outputs.tag}}
+
+  docker-image-compute:
+    runs-on: [ self-hosted, Linux, k8s-runner ]
+    # needs: [ build-neon ]
+    #    if: |
+    #      github.ref_name == 'main' &&
+    #      github.event_name != 'workflow_dispatch'
+    outputs:
+      build-tag: ${{steps.build-tag.outputs.tag}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 2
+
+      - name: Get build tag
+        run: |
+          echo "::set-output name=tag::main-$(git rev-list --count HEAD)}"
+        id: build-tag
+
+      - name: Build compute-tools Docker image
+        uses: docker/build-push-action@v2
+        with:
+          build-args: |
+            AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
+            AWS_SECRET_ACCESS_KEY="${CACHEPOT_AWS_SECRET_ACCESS_KEY}"
+          push: false
+          file: Dockerfile.compute-tools
+          tags: neondatabase/compute-tools:local, neondatabase/compute-tools:testgh-latest
+
+      - name: Build compute-node Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./vendor/postgres/
+          build-args:
+            COMPUTE_TOOLS_TAG=local
+          push: false
+          tags: neondatabase/compute-node:testgh-latest, neondatabase/compute-node:testgh-${{steps.build-tag.outputs.tag}}
+
