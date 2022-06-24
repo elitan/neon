@@ -331,10 +331,6 @@ jobs:
           username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
           password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
 
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Get build tag
         run: |
           echo "::set-output name=tag::main-$(git rev-list --count HEAD)}"
@@ -343,6 +339,7 @@ jobs:
       - name: Build compute-tools Docker image
         uses: docker/build-push-action@v2
         with:
+          context: .
           build-args: |
             GIT_VERSION="${GITHUB_SHA}"
             AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
@@ -372,10 +369,6 @@ jobs:
           username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
           password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
 
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Get build tag
         run: |
           echo "::set-output name=tag::main-$(git rev-list --count HEAD)}"
@@ -384,6 +377,7 @@ jobs:
       - name: Build compute-tools Docker image
         uses: docker/build-push-action@v2
         with:
+          context: .
           build-args: |
             AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
             AWS_SECRET_ACCESS_KEY="${CACHEPOT_AWS_SECRET_ACCESS_KEY}"
