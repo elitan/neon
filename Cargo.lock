@@ -3758,6 +3758,7 @@ dependencies = [
  "anyhow",
  "clap 3.0.14",
  "env_logger",
+ "lazy_static",
  "log",
  "postgres",
  "tempfile",
