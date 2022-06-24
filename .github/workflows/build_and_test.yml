@@ -252,6 +252,41 @@ jobs:
           rust_toolchain: ${{ matrix.rust_toolchain }}
           test_selection: batch_others
 
+      - name: Build coverage report
+        if: matrix.build_type == 'debug'
+        run: |
+          COMMIT_URL=https://github.com/neondatabase/neon/commit/$GITHUB_SHA
+
+          scripts/coverage \
+            --dir=/tmp/zenith/coverage report \
+            --input-objects=/tmp/zenith/etc/binaries.list \
+            --commit-url=$COMMIT_URL \
+            --format=github
+
+      - name: Upload coverage report
+        if: matrix.build_type == 'debug'
+        run: |
+          REPORT_URL=https://neondatabase.github.io/zenith-coverage-data/$GITHUB_SHA
+          COMMIT_URL=https://github.com/neondatabase/neon/commit/$GITHUB_SHA
+
+          scripts/git-upload \
+            --repo=https://$VIP_VAP_ACCESS_TOKEN@github.com/neondatabase/zenith-coverage-data.git \
+            --message="Add code coverage for $COMMIT_URL" \
+            copy /tmp/zenith/coverage/report $GITHUB_SHA # COPY FROM TO_RELATIVE
+
+          # Add link to the coverage report to the commit
+          curl -f -X POST \
+          https://api.github.com/repos/${{ github.repository }}/statuses/$GITHUB_SHA \
+          -H "Accept: application/vnd.github.v3+json" \
+          --user "$CI_ACCESS_TOKEN" \
+          --data \
+            "{
+              \"state\": \"success\",
+              \"context\": \"zenith-coverage\",
+              \"description\": \"Coverage report is ready\",
+              \"target_url\": \"$REPORT_URL\"
+            }"
+
   benchmarks:
     runs-on: [ self-hosted, Linux, k8s-runner ]
     needs: [ build-neon ]
@@ -273,4 +308,32 @@ jobs:
           rust_toolchain: ${{ matrix.rust_toolchain }}
           test_selection: performance
           run_in_parallel: false
-          # save_perf_report: true
+          save_perf_report: true
+
+  docker-image:
+    runs-on: [ self-hosted, Linux, k8s-runner ]
+    needs: [ build-neon ]
+    if: |
+      github.ref_name == 'main' &&
+      github.event_name != 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
+
+       - name: Build compute-tools Docker image
+         uses: docker/build-push-action@v2
+         with:
+           build-args: |
+             AWS_ACCESS_KEY_ID="${CACHEPOT_AWS_ACCESS_KEY_ID}"
+             AWS_SECRET_ACCESS_KEY="${CACHEPOT_AWS_SECRET_ACCESS_KEY}"
+           push: false
+           tags: neondatabase/console:local
