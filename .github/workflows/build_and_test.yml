@@ -312,7 +312,7 @@ jobs:
 
   docker-image:
     runs-on: [ self-hosted, Linux, k8s-runner ]
-#    needs: [ build-neon ]
+#    needs: [ pg_regress-tests, other-tests ]
 #    if: |
 #      github.ref_name == 'main' &&
 #      github.event_name != 'workflow_dispatch'
@@ -355,10 +355,10 @@ jobs:
 
   docker-image-compute:
     runs-on: [ self-hosted, Linux, k8s-runner ]
-    # needs: [ build-neon ]
-    #    if: |
-    #      github.ref_name == 'main' &&
-    #      github.event_name != 'workflow_dispatch'
+#    needs: [ pg_regress-tests, other-tests ]
+#    if: |
+#      github.ref_name == 'main' &&
+#      github.event_name != 'workflow_dispatch'
     outputs:
       build-tag: ${{steps.build-tag.outputs.tag}}
     steps:

@@ -111,9 +111,9 @@ runs:
           -rA $TEST_SELECTION $EXTRA_PARAMS
 
         if [[ "${{ inputs.save_perf_report }}" == "true" ]]; then
-#          if [[ "$GITHUB_REF" == "main" ]]; then
+          #if [[ "$GITHUB_REF" == "main" ]]; then
             export REPORT_FROM="$PERF_REPORT_DIR"
             export REPORT_TO=local
             scripts/generate_and_push_perf_report.sh
-#          fi
+          #fi
         fi
