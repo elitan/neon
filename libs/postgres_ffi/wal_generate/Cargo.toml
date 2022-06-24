@@ -12,4 +12,5 @@ env_logger = "0.9"
 lazy_static = "1.4"
 log = "0.4"
 postgres = { git = "https://github.com/zenithdb/rust-postgres.git", rev="d052ee8b86fff9897c77b0fe89ea9daba0e1fa38" }
+postgres_ffi = { path = "../" }
 tempfile = "3.2"
